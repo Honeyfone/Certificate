@@ -1,0 +1,116 @@
+<?php
+require('fpdf/fpdf.php');
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+require 'vendor/autoload.php';
+
+// Database connection
+$servername = "localhost";
+$username = "your_db_username";
+$password = "your_db_password";
+$dbname = "your_db_name";
+
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $name = $_POST['name'];
+    $email = $_POST['email'];
+
+    // Check if the user has already received the certificate
+    $sql = "SELECT * FROM certificate_requests WHERE name = ? AND email = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $name, $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        echo "<h2>Certificate for $name has already been sent to $email.</h2>";
+    } else {
+        // Create a custom PDF Certificate with a background image and text enhancements
+        class PDF extends FPDF {
+            function Header() {
+                // Add background image
+                $this->Image('certificate_background.jpg', 0, 0, 210, 297); // Full A4 size background
+            }
+        }
+
+        $pdf = new PDF();
+        $pdf->AddPage();
+
+        // Add Bootcamp Logo
+        $pdf->Image('logo.png', 10, 10, 30, 30); // Logo on the top left
+
+        // Certificate Title
+        $pdf->SetFont('Arial', 'B', 35);
+        $pdf->SetTextColor(33, 150, 243);
+        $pdf->Cell(0, 50, 'Certificate of Achievement', 0, 1, 'C');
+
+        // Add recipient's name
+        $pdf->Ln(20);
+        $pdf->SetFont('Arial', 'B', 28);
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->Cell(0, 30, $name, 0, 1, 'C');
+
+        // Add message
+        $pdf->SetFont('Arial', '', 18);
+        $pdf->Cell(0, 20, 'Has successfully completed the Bootcamp', 0, 1, 'C');
+        $pdf->Ln(10);
+        $pdf->Cell(0, 20, 'Issued on ' . date("F j, Y"), 0, 1, 'C');
+
+        // Signature or Seal
+        $pdf->Image('signature.png', 150, 240, 40, 40);
+        $pdf->SetFont('Arial', 'I', 12);
+        $pdf->Cell(0, 10, 'John Doe, Bootcamp Coordinator', 0, 1, 'R');
+
+        // Save the certificate as a file
+        $file_name = 'certificate_' . time() . '.pdf';
+        $pdf->Output('F', $file_name);
+
+        // Send email with PHPMailer
+        $mail = new PHPMailer(true);
+        try {
+            $mail->isSMTP();
+            $mail->Host = 'smtp.gmail.com';
+            $mail->SMTPAuth = true;
+            $mail->Username = 'your-email@gmail.com';
+            $mail->Password = 'your-password';
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port = 587;
+
+            // Recipients
+            $mail->setFrom('your-email@gmail.com', 'Bootcamp Team');
+            $mail->addAddress($email);
+
+            // Attachments
+            $mail->addAttachment($file_name);
+
+            // Email content
+            $mail->isHTML(true);
+            $mail->Subject = 'Your Bootcamp Certificate';
+            $mail->Body    = "<h3>Dear $name,</h3><p>Congratulations on completing the bootcamp!</p><p>Your certificate is attached.</p><p>Best regards,<br>Bootcamp Team</p>";
+
+            $mail->send();
+
+            // Store user in the database after successful mail
+            $sql = "INSERT INTO certificate_requests (name, email) VALUES (?, ?)";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ss", $name, $email);
+            $stmt->execute();
+
+            echo "<h2>Success! Your certificate has been sent to $email.</h2>";
+        } catch (Exception $e) {
+            echo "<h2>Error: Certificate could not be sent. Mailer Error: {$mail->ErrorInfo}</h2>";
+        }
+
+        // Delete the PDF after sending
+        unlink($file_name);
+    }
+}
+$conn->close();
+?>

@@ -1,0 +1,21 @@
+{
+    "name": "nodes/certificate",
+    "description": "online certificate generation",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Nodes\\Certificate\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Nodestech",
+            "email": "nodestech2@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "tecnickcom/tcpdf": "^6.7",
+        "phpmailer/phpmailer": "^6.9"
+    }
+}
